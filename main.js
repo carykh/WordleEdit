@@ -852,4 +852,4 @@ function yesNoValue(arr, index, def){
 	}
 }
 
-client.login('OTQwMTY2MTk2MTIzMjcxMjA5.YgDcAA.VWRjgisEB9nXxIeiaecCQ4i-RR4');
+client.login(require("./token.json").token);
