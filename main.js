@@ -1,4 +1,4 @@
-const { Client, Intents } = require('discord.js');
+const { Client, Intents, GatewayIntentBits } = require('discord.js');
 const prefix = '!';
 var pingCount = 0;
 var MILLI = 1000;
@@ -11,11 +11,11 @@ var skulls = skullPiece+skullPiece+skullPiece;
 var thought = ":thought_balloon: ";
 
 const client = new Client({ intents: [
-	Intents.FLAGS.DIRECT_MESSAGE_REACTIONS,
-    Intents.FLAGS.DIRECT_MESSAGES,
-    Intents.FLAGS.DIRECT_MESSAGE_TYPING,
-	Intents.FLAGS.GUILDS,
-	Intents.FLAGS.GUILD_MESSAGES],
+	GatewayIntentBits.DirectMessageReactions,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.DirectMessageTyping,
+	GatewayIntentBits.Guilds,
+	GatewayIntentBits.GuildMessages],
 	
 	partials: [
         'CHANNEL', // Required to receive DMs
