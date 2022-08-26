@@ -32,8 +32,10 @@ var wordListEasy = wordListEasyFile.split("\r\n");
 var intervalFunc = null;
 
 var games;
-var gameIndex = 0;
+var gameIndex = 0; // For keeping track of multiple games
 games[gameIndex] = newClearGame("", new Array(0));
+
+var players; // For keeping track of which player is assigned to what game
 
 client.once('ready',() => {
 	console.log('WordleEdit bot is online!');
@@ -43,13 +45,13 @@ client.on("messageCreate", (message) => {
 	if (message.author.bot) {
 		return;
 	}else if (message.channel.type == "DM") {
-		var player_index = getPlayerIndex(message.author);
+		var player_index, player_game = getPlayerIndex(message.author);
 		if(player_index < 0){
-			message.author.send("Sorry, you aren't in the current WordleEdit game.");
+			message.author.send("Sorry, you aren't in a current WordleEdit game.");
 		}else{
-			if(games[gameIndex]["stage"] == 2){
-				var wc = games[gameIndex]["word_count"];
-				if(games[gameIndex]["words"][player_index].length == wc){
+			if(games[player_game]["stage"] == 2){
+				var wc = games[player_game]["word_count"];
+				if(games[player_game]["words"][player_index].length == wc){
 					message.author.send("You have already written enough words for this game ("+wc+").");
 				}else{
 					processWritingSubmission(games, player_index, message.content);
@@ -57,12 +59,12 @@ client.on("messageCreate", (message) => {
 						startGuessingStage(games);
 					}
 				}
-			}else if(games[gameIndex]["stage"] == 3){
+			}else if(games[player_game]["stage"] == 3){
 				if(message.content.length >= 10 && message.content.includes(' ')){  // The player initiated an "Edit"!
 					processEditingSubmission(games, player_index, message.content);
 				}else{
-					var gc = games[gameIndex]["guesses"][player_index].length;
-					if(gc == games[gameIndex]["round_count"]){
+					var gc = games[player_game]["guesses"][player_index].length;
+					if(gc == games[player_game]["round_count"]){
 						message.author.send("You've already submitted a guess for this turn! Wait for the turn to finish.");
 					}else{
 						processGuessingSubmission(games, player_index, message.content);
@@ -198,10 +200,11 @@ function hasEveryoneFinishedGuessing(game){
 
 
 function getPlayerIndex(author){
-	var LEN = games[gameIndex]["player_list"].length;
+	let playerGame = players[author]; // Find player's assigned game
+	var LEN = games[playerGame]["player_list"].length;
 	for(var i = 0; i < LEN; i++){
-		if(author == games[gameIndex]["player_list"][i]){
-			return i;
+		if(author == games[playerGame]["player_list"][i]){
+			return i, playerGame;
 		}
 	}
 	return -1;
@@ -278,7 +281,7 @@ function handleGameMessage(message){
 	if(command == 'join'){
 		if(games[gameIndex]["stage"] == 1){
 			if(games[gameIndex]["player_list"].includes(author)){
-				mc.send(author.username+", you're already in this game. Don't try to join twice.");
+				mc.send(author.username+", you're already in a game. Don't try to join twice.");
 			}else{
 				games[gameIndex]["player_list"].push(author);
 				
@@ -296,6 +299,8 @@ function handleGameMessage(message){
 				games[gameIndex]["most_recent_new_word"].push(-1);
 				mc.send(author.username+" just joined the game. "+
 					"\nPlayer count: "+games[gameIndex]["player_list"].length);
+
+				players[author] = gameIndex; // Assign the player to the given game index
 			}
 		}else{
 			mc.send("It's the wrong stage of game for that.");
