@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, DMChannel, ChannelType } = require('discord.js');
 const prefix = '!';
 var pingCount = 0;
 var MILLI = 1000;
@@ -19,8 +19,9 @@ const client = new Client({ intents: [
 	GatewayIntentBits.MessageContent],
 	
 	partials: [
-        'CHANNEL', // Required to receive DMs
-    ]	});
+        Partials.Channel, // Required to receive DMs
+    ]	
+});
 
 var fs = require("fs");
 
@@ -45,8 +46,11 @@ client.on("messageCreate", (message) => {
 	console.log(message.content);
 	if (message.author.bot) {
 		return;
-	}else if (message.channel.type == "DM") {
-		var player_index, player_game = getPlayerIndex(message.author);
+	}else if (message.channel.type == ChannelType.DM) {
+		var player_info = getPlayerInfo(message.author);
+		player_index = player_info[0];
+		player_game = player_info[1];
+
 		if(player_index < 0){
 			message.author.send("Sorry, you aren't in a current WordleEdit game.");
 		}else{
@@ -83,13 +87,16 @@ client.on("messageCreate", (message) => {
 	
 	const args = message.content.slice(prefix.length).split(" ");
 	const command = args.shift().toLowerCase();
+
+	let channelGameIndex = getGameIndexByChannel(message.channel);
+	
 	if(command === 'ping'){
 		pingCount++;
 		message.channel.send("PONG!!! "+pingCount+' pings have been said since I last started up.');
 	}else if(command === 'getreply'){
 		message.author.send("Here is your reply");
 	}
-	else if(games[gameIndex] && games[gameIndex]["stage"] >= 1){
+	else if (channelGameIndex > -1 && games[channelGameIndex]["stage"] >= 1) {
 		if(message.channel == games[gameIndex]["channel"]){
 			handleGameMessage(message);
 		}
@@ -200,15 +207,17 @@ function hasEveryoneFinishedGuessing(game){
 }
 
 
-function getPlayerIndex(author){
+function getPlayerInfo(author){
 	let playerGame = players[author]; // Find player's assigned game
-	var LEN = games[playerGame]["player_list"].length;
-	for(var i = 0; i < LEN; i++){
-		if(author == games[playerGame]["player_list"][i]){
-			return i, playerGame;
+	if (playerGame) {
+		var LEN = games[playerGame]["player_list"].length;
+		for(var i = 0; i < LEN; i++){
+			if(author == games[playerGame]["player_list"][i]){
+				return [i, playerGame];
+			}
 		}
 	}
-	return -1;
+	return [-1, -1];
 }
 
 function parseSubmittedWord(game, player_index, message, allow_hard_words){
@@ -545,6 +554,7 @@ function finishGuessingTurn(game){
 		}
 		abort(game, "This WordleEdit game has ended.");
 		game["stage"] = 0;
+		delete games[game["index"]];
 	}else{
 		game["round_count"]++;
 		clearInterval(intervalFunc);
@@ -865,6 +875,17 @@ function yesNoValue(arr, index, def){
 	}else{
 		return (arr[index] === "y");
 	}
+}
+
+function getGameIndexByChannel(mc) {
+	let keys = Object.keys(games);
+	for (let game in keys) {
+		console.log(games);
+		if (games[keys[game]]["channel"] == mc) {
+			return keys[game];
+		}
+	}
+	return -1;
 }
 
 client.login(require("./token.json").token);
