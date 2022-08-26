@@ -136,7 +136,10 @@ function processEditingSubmission(game, player_index, receivedMessage){
 	var response = parseSubmittedWord(game, player_index, parts[1], game["allow_hard_words"]);
 	var newWord = response[0];
 	var _alert = response[1];
-	if(newWord == origWord){return;}
+	if(newWord == origWord){
+		game["player_list"][player_index].send("Edit at least one letter of the word.");
+		return;
+		}
 	if(newWord.length == 5){ // The player submitted a successful word to edit into.
 		var editCost = getEditCost(origWord,newWord);
 		
