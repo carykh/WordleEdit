@@ -43,7 +43,6 @@ client.once('ready',() => {
 });
 
 client.on("messageCreate", (message) => {
-	console.log(message.content);
 	if (message.author.bot) {
 		return;
 	}else if (message.channel.type == ChannelType.DM) {
@@ -880,7 +879,6 @@ function yesNoValue(arr, index, def){
 function getGameIndexByChannel(mc) {
 	let keys = Object.keys(games);
 	for (let game in keys) {
-		console.log(games);
 		if (games[keys[game]]["channel"] == mc) {
 			return keys[game];
 		}
