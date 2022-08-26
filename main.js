@@ -1,4 +1,4 @@
-const { Client, Intents } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, DMChannel, ChannelType } = require('discord.js');
 const prefix = '!';
 var pingCount = 0;
 var MILLI = 1000;
@@ -11,15 +11,17 @@ var skulls = skullPiece+skullPiece+skullPiece;
 var thought = ":thought_balloon: ";
 
 const client = new Client({ intents: [
-	Intents.FLAGS.DIRECT_MESSAGE_REACTIONS,
-    Intents.FLAGS.DIRECT_MESSAGES,
-    Intents.FLAGS.DIRECT_MESSAGE_TYPING,
-	Intents.FLAGS.GUILDS,
-	Intents.FLAGS.GUILD_MESSAGES],
+	GatewayIntentBits.DirectMessageReactions,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.DirectMessageTyping,
+	GatewayIntentBits.Guilds,
+	GatewayIntentBits.GuildMessages,
+	GatewayIntentBits.MessageContent],
 	
 	partials: [
-        'CHANNEL', // Required to receive DMs
-    ]	});
+        Partials.Channel, // Required to receive DMs
+    ]	
+});
 
 var fs = require("fs");
 
@@ -31,7 +33,10 @@ var wordListEasy = wordListEasyFile.split("\r\n");
 
 var intervalFunc = null;
 
-var game = newClearGame("", new Array(0));
+var games = {};
+var gameIndex = 0; // For keeping track of multiple games
+
+var players = {}; // For keeping track of which player is assigned to what game
 
 client.once('ready',() => {
 	console.log('WordleEdit bot is online!');
@@ -40,32 +45,35 @@ client.once('ready',() => {
 client.on("messageCreate", (message) => {
 	if (message.author.bot) {
 		return;
-	}else if (message.channel.type == "DM") {
-		var player_index = getPlayerIndex(message.author);
+	}else if (message.channel.type == ChannelType.DM) {
+		var player_info = getPlayerInfo(message.author);
+		player_index = player_info[0];
+		player_game = player_info[1];
+
 		if(player_index < 0){
-			message.author.send("Sorry, you aren't in the current WordleEdit game.");
+			message.author.send("Sorry, you aren't in a current WordleEdit game.");
 		}else{
-			if(game["stage"] == 2){
-				var wc = game["word_count"];
-				if(game["words"][player_index].length == wc){
+			if(games[player_game]["stage"] == 2){
+				var wc = games[player_game]["word_count"];
+				if(games[player_game]["words"][player_index].length == wc){
 					message.author.send("You have already written enough words for this game ("+wc+").");
 				}else{
-					processWritingSubmission(game, player_index, message.content);
-					if(hasEveryoneFinishedWriting(game)){
-						startGuessingStage(game);
+					processWritingSubmission(games[player_game], player_index, message.content);
+					if(hasEveryoneFinishedWriting(games[player_game])){
+						startGuessingStage(games[player_game]);
 					}
 				}
-			}else if(game["stage"] == 3){
+			}else if(games[player_game]["stage"] == 3){
 				if(message.content.length >= 10 && message.content.includes(' ')){  // The player initiated an "Edit"!
-					processEditingSubmission(game, player_index, message.content);
+					processEditingSubmission(games[player_game], player_index, message.content);
 				}else{
-					var gc = game["guesses"][player_index].length;
-					if(gc == game["round_count"]){
+					var gc = games[player_game]["guesses"][player_index].length;
+					if(gc == games[player_game]["round_count"]){
 						message.author.send("You've already submitted a guess for this turn! Wait for the turn to finish.");
 					}else{
-						processGuessingSubmission(game, player_index, message.content);
-						if(hasEveryoneFinishedGuessing(game)){
-							finishGuessingTurn(game);
+						processGuessingSubmission(games[player_game], player_index, message.content);
+						if(hasEveryoneFinishedGuessing(games[player_game])){
+							finishGuessingTurn(games[player_game]);
 						}
 					}
 				}
@@ -78,21 +86,24 @@ client.on("messageCreate", (message) => {
 	
 	const args = message.content.slice(prefix.length).split(" ");
 	const command = args.shift().toLowerCase();
+
+	let channelGameIndex = getGameIndexByChannel(message.channel);
+	
 	if(command === 'ping'){
 		pingCount++;
 		message.channel.send("PONG!!! "+pingCount+' pings have been said since I last started up.');
 	}else if(command === 'getreply'){
 		message.author.send("Here is your reply");
-	}else if(game["stage"] >= 1){
-		if(message.channel == game["channel"]){
+	}
+	else if (channelGameIndex > -1 && games[channelGameIndex]["stage"] >= 1) {
+		if(message.channel == games[gameIndex]["channel"]){
 			handleGameMessage(message);
-		}else{
-			message.channel.send("There's a WordleEdit game going on in a different channel right now. Please wait for that to finish first.");
 		}
-	}else if(command == 'create'){
-		game = newClearGame(message.channel, args);
-		game["stage"] = 1
-		message.channel.send(announceStringOf(game,1));
+	}
+	else if(command == 'create'){
+		games[gameIndex+1] = newClearGame(message.channel, args);
+		games[gameIndex]["stage"] = 1
+		message.channel.send(announceStringOf(games[gameIndex],1));
 	}
 });
 
@@ -195,14 +206,17 @@ function hasEveryoneFinishedGuessing(game){
 }
 
 
-function getPlayerIndex(author){
-	var LEN = game["player_list"].length;
-	for(var i = 0; i < LEN; i++){
-		if(author == game["player_list"][i]){
-			return i;
+function getPlayerInfo(author){
+	let playerGame = players[author]; // Find player's assigned game
+	if (playerGame) {
+		var LEN = games[playerGame]["player_list"].length;
+		for(var i = 0; i < LEN; i++){
+			if(author == games[playerGame]["player_list"][i]){
+				return [i, playerGame];
+			}
 		}
 	}
-	return -1;
+	return [-1, -1];
 }
 
 function parseSubmittedWord(game, player_index, message, allow_hard_words){
@@ -273,38 +287,44 @@ function handleGameMessage(message){
 	const args = message.content.slice(prefix.length).split(" ");
 	const command = args.shift().toLowerCase();
 	var author = message.author;
+	let player_game = players[author];
 	if(command == 'join'){
-		if(game["stage"] == 1){
-			if(game["player_list"].includes(author)){
+		if(games[gameIndex]["stage"] == 1){
+			if (player_game && games[player_game]["stage"] > 0) {
+				mc.send(author.username+", you're already in a game. Don't try to join another.");
+			}
+			else if(games[gameIndex]["player_list"].includes(author)){
 				mc.send(author.username+", you're already in this game. Don't try to join twice.");
 			}else{
-				game["player_list"].push(author);
+				games[gameIndex]["player_list"].push(author);
 				
 				var words = new Array(0);
-				game["words"].push(words);
+				games[gameIndex]["words"].push(words);
 				var guesses = new Array(0);
-				game["guesses"].push(guesses);
+				games[gameIndex]["guesses"].push(guesses);
 				var codes = new Array(0);
-				game["codes"].push(codes);
+				games[gameIndex]["codes"].push(codes);
 				
-				game["word_on"].push(0);
-				game["edits"].push(0);
-				game["max_greens"].push(0);
-				game["most_recent_edit"].push(-1);
-				game["most_recent_new_word"].push(-1);
+				games[gameIndex]["word_on"].push(0);
+				games[gameIndex]["edits"].push(0);
+				games[gameIndex]["max_greens"].push(0);
+				games[gameIndex]["most_recent_edit"].push(-1);
+				games[gameIndex]["most_recent_new_word"].push(-1);
 				mc.send(author.username+" just joined the game. "+
-					"\nPlayer count: "+game["player_list"].length);
+					"\nPlayer count: "+games[gameIndex]["player_list"].length);
+
+				players[author] = gameIndex; // Assign the player to the given game index
 			}
 		}else{
 			mc.send("It's the wrong stage of game for that.");
 		}
 	}else if(command == 'start'){
-		if(game["stage"] == 1){
-			var PLAYER_COUNT = game["player_list"].length;
+		if(games[player_game]["stage"] == 1){
+			var PLAYER_COUNT = games[player_game]["player_list"].length;
 			if(PLAYER_COUNT < 1){
 				message.channel.send("There are only "+PLAYER_COUNT+" players. Not enough.");
 			}else{
-				startGame(game, args);
+				startGame(games[player_game], args);
 			}
 		}else{
 			mc.send("It's the wrong stage of game for that.");
@@ -312,8 +332,8 @@ function handleGameMessage(message){
 	}else if(command == 'create'){
 		mc.send("It's the wrong stage of game for that.");
 	}else if(command == 'abort'){
-		abort(game, "This WordleEdit game has been aborted.");
-		game["stage"] = 0;
+		abort(games[player_game], "This WordleEdit game has been aborted.");
+		games[player_game]["stage"] = 0;
 	}
 }
 
@@ -533,6 +553,7 @@ function finishGuessingTurn(game){
 		}
 		abort(game, "This WordleEdit game has ended.");
 		game["stage"] = 0;
+		delete games[game["index"]];
 	}else{
 		game["round_count"]++;
 		clearInterval(intervalFunc);
@@ -805,6 +826,7 @@ function announceStringOf(game,stage){
 
 function newClearGame(mc, args){
 	var thisGame = [];
+	gameIndex++;
 	thisGame["player_list"] = [];
 	
 	thisGame["words"] = new Array(0);
@@ -834,6 +856,8 @@ function newClearGame(mc, args){
 	
 	thisGame["max_edits"] = 9;
 
+	thisGame["index"] = gameIndex;
+
 	return thisGame;
 }
 
@@ -850,6 +874,16 @@ function yesNoValue(arr, index, def){
 	}else{
 		return (arr[index] === "y");
 	}
+}
+
+function getGameIndexByChannel(mc) {
+	let keys = Object.keys(games);
+	for (let game in keys) {
+		if (games[keys[game]]["channel"] == mc) {
+			return keys[game];
+		}
+	}
+	return -1;
 }
 
 client.login(require("./token.json").token);
