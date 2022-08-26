@@ -54,22 +54,22 @@ client.on("messageCreate", (message) => {
 				if(games[player_game]["words"][player_index].length == wc){
 					message.author.send("You have already written enough words for this game ("+wc+").");
 				}else{
-					processWritingSubmission(games, player_index, message.content);
-					if(hasEveryoneFinishedWriting(games)){
-						startGuessingStage(games);
+					processWritingSubmission(games[player_game], player_index, message.content);
+					if(hasEveryoneFinishedWriting(games[player_game])){
+						startGuessingStage(games[player_game]);
 					}
 				}
 			}else if(games[player_game]["stage"] == 3){
 				if(message.content.length >= 10 && message.content.includes(' ')){  // The player initiated an "Edit"!
-					processEditingSubmission(games, player_index, message.content);
+					processEditingSubmission(games[player_game], player_index, message.content);
 				}else{
 					var gc = games[player_game]["guesses"][player_index].length;
 					if(gc == games[player_game]["round_count"]){
 						message.author.send("You've already submitted a guess for this turn! Wait for the turn to finish.");
 					}else{
-						processGuessingSubmission(games, player_index, message.content);
-						if(hasEveryoneFinishedGuessing(games)){
-							finishGuessingTurn(games);
+						processGuessingSubmission(games[player_game], player_index, message.content);
+						if(hasEveryoneFinishedGuessing(games[player_game])){
+							finishGuessingTurn(games[player_game]);
 						}
 					}
 				}
@@ -87,16 +87,16 @@ client.on("messageCreate", (message) => {
 		message.channel.send("PONG!!! "+pingCount+' pings have been said since I last started up.');
 	}else if(command === 'getreply'){
 		message.author.send("Here is your reply");
-	}else if(games[gameIndex]["stage"] >= 1){
+	}
+	else if(games[gameIndex]["stage"] >= 1){
 		if(message.channel == games[gameIndex]["channel"]){
 			handleGameMessage(message);
-		}else{
-			message.channel.send("There's a WordleEdit game going on in a different channel right now. Please wait for that to finish first.");
 		}
-	}else if(command == 'create'){
+	}
+	else if(command == 'create'){
 		games[gameIndex] = newClearGame(message.channel, args);
-		games[gameIndex]["stage"] = 1
-		message.channel.send(announceStringOf(games,1));
+		games[gameIndex-1]["stage"] = 1
+		message.channel.send(announceStringOf(games[gameIndex-1],1));
 	}
 });
 
@@ -278,10 +278,14 @@ function handleGameMessage(message){
 	const args = message.content.slice(prefix.length).split(" ");
 	const command = args.shift().toLowerCase();
 	var author = message.author;
+	let player_game = players[author];
 	if(command == 'join'){
-		if(games[gameIndex]["stage"] == 1){
-			if(games[gameIndex]["player_list"].includes(author)){
-				mc.send(author.username+", you're already in a game. Don't try to join twice.");
+		if(games[player_game]["stage"] == 1){
+			if (player_game && games[player_game]["stage"] > 0) {
+				mc.send(author.username+", you're already in a game. Don't try to join another.");
+			}
+			else if(games[gameIndex]["player_list"].includes(author)){
+				mc.send(author.username+", you're already in this game. Don't try to join twice.");
 			}else{
 				games[gameIndex]["player_list"].push(author);
 				
@@ -306,12 +310,12 @@ function handleGameMessage(message){
 			mc.send("It's the wrong stage of game for that.");
 		}
 	}else if(command == 'start'){
-		if(games[gameIndex]["stage"] == 1){
-			var PLAYER_COUNT = games[gameIndex]["player_list"].length;
+		if(games[player_game]["stage"] == 1){
+			var PLAYER_COUNT = games[player_game]["player_list"].length;
 			if(PLAYER_COUNT < 1){
 				message.channel.send("There are only "+PLAYER_COUNT+" players. Not enough.");
 			}else{
-				startGame(games, args);
+				startGame(games[player_game], args);
 			}
 		}else{
 			mc.send("It's the wrong stage of game for that.");
@@ -319,8 +323,8 @@ function handleGameMessage(message){
 	}else if(command == 'create'){
 		mc.send("It's the wrong stage of game for that.");
 	}else if(command == 'abort'){
-		abort(games, "This WordleEdit game has been aborted.");
-		games[gameIndex]["stage"] = 0;
+		abort(games[player_game], "This WordleEdit game has been aborted.");
+		games[player_game]["stage"] = 0;
 	}
 }
 
