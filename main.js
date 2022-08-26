@@ -1,4 +1,4 @@
-const { Client, Intents } = require('discord.js');
+const { Client, GatewayIntentBits } = require('discord.js');
 const prefix = '!';
 var pingCount = 0;
 var MILLI = 1000;
@@ -11,11 +11,12 @@ var skulls = skullPiece+skullPiece+skullPiece;
 var thought = ":thought_balloon: ";
 
 const client = new Client({ intents: [
-	Intents.FLAGS.DIRECT_MESSAGE_REACTIONS,
-    Intents.FLAGS.DIRECT_MESSAGES,
-    Intents.FLAGS.DIRECT_MESSAGE_TYPING,
-	Intents.FLAGS.GUILDS,
-	Intents.FLAGS.GUILD_MESSAGES],
+	GatewayIntentBits.DirectMessageReactions,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.DirectMessageTyping,
+	GatewayIntentBits.Guilds,
+	GatewayIntentBits.GuildMessages,
+	GatewayIntentBits.MessageContent],
 	
 	partials: [
         'CHANNEL', // Required to receive DMs
@@ -31,17 +32,17 @@ var wordListEasy = wordListEasyFile.split("\r\n");
 
 var intervalFunc = null;
 
-var games;
+var games = {};
 var gameIndex = 0; // For keeping track of multiple games
-games[gameIndex] = newClearGame("", new Array(0));
 
-var players; // For keeping track of which player is assigned to what game
+var players = {}; // For keeping track of which player is assigned to what game
 
 client.once('ready',() => {
 	console.log('WordleEdit bot is online!');
 });
 
 client.on("messageCreate", (message) => {
+	console.log(message.content);
 	if (message.author.bot) {
 		return;
 	}else if (message.channel.type == "DM") {
@@ -88,15 +89,15 @@ client.on("messageCreate", (message) => {
 	}else if(command === 'getreply'){
 		message.author.send("Here is your reply");
 	}
-	else if(games[gameIndex]["stage"] >= 1){
+	else if(games[gameIndex] && games[gameIndex]["stage"] >= 1){
 		if(message.channel == games[gameIndex]["channel"]){
 			handleGameMessage(message);
 		}
 	}
 	else if(command == 'create'){
-		games[gameIndex] = newClearGame(message.channel, args);
-		games[gameIndex-1]["stage"] = 1
-		message.channel.send(announceStringOf(games[gameIndex-1],1));
+		games[gameIndex+1] = newClearGame(message.channel, args);
+		games[gameIndex]["stage"] = 1
+		message.channel.send(announceStringOf(games[gameIndex],1));
 	}
 });
 
@@ -280,7 +281,7 @@ function handleGameMessage(message){
 	var author = message.author;
 	let player_game = players[author];
 	if(command == 'join'){
-		if(games[player_game]["stage"] == 1){
+		if(games[gameIndex]["stage"] == 1){
 			if (player_game && games[player_game]["stage"] > 0) {
 				mc.send(author.username+", you're already in a game. Don't try to join another.");
 			}
@@ -816,6 +817,7 @@ function announceStringOf(game,stage){
 
 function newClearGame(mc, args){
 	var thisGame = [];
+	gameIndex++;
 	thisGame["player_list"] = [];
 	
 	thisGame["words"] = new Array(0);
@@ -847,7 +849,6 @@ function newClearGame(mc, args){
 
 	thisGame["index"] = gameIndex;
 
-	gameIndex++
 	return thisGame;
 }
 
