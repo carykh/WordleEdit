@@ -1,0 +1,15 @@
+{
+  "name": "WordleEdit",
+  "version": "1.0.0",
+  "description": "WordleEdit is a multiplayer version of Wordle (created by Josh Wardle) where players can edit their own words as they go.",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "13.12.0"
+  }
+}
