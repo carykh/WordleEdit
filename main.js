@@ -37,7 +37,8 @@ var intervalFunc = null;
 var game = newClearGame("", new Array(0));
 
 client.once('ready',() => {
-    console.log('WordleEdit bot is online!');
+    console.log(`WordleEdit bot is online as ${client.user.tag}!`);
+    client.user.setActivity('!create, !join', { type: 'WATCHING' });
 });
 
 client.on("messageCreate", (message) => {
@@ -46,7 +47,7 @@ client.on("messageCreate", (message) => {
     } else if (message.channel.type == "DM") {
         var player_index = getPlayerIndex(message.author);
         if (player_index < 0) {
-            message.author.send("Sorry, you aren't in the current WordleEdit game.");
+            message.author.send("Sorry, you aren't in a current WordleEdit game. Join the game using \"`!join`\" or \"`!create`\" a new game.");
         } else {
             if (game["stage"] == 2) {
                 var wc = game["word_count"];
@@ -802,7 +803,7 @@ function formatNumber(number) {
 function announceStringOf(game,stage) {
     var ANNOUNCE_STR = "We're creating a brand new game of WordleEdit!";
     if (stage == 1) {
-        ANNOUNCE_STR += "\nType \"!join\" to join this game."
+        ANNOUNCE_STR += "\nType \"`!join`\" to join this game."
     } else if (stage == 2) {
         ANNOUNCE_STR += "\n\nPlayer list: "
         for (var i = 0; i < game["player_list"].length; i++) {
